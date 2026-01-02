@@ -1,0 +1,753 @@
+{
+  "name": "Shopify: Checkouts abandonados → WhatsApp (Rapiwa) + Sheets",
+  "nodes": [
+    {
+      "parameters": {
+        "url": "={{ 'https://' + $json.shop + '/admin/api/2025-07/checkouts.json' + '?status=open&limit=250' + '&created_at_min=' + encodeURIComponent($json.created_at_min) + '&created_at_max=' + encodeURIComponent($json.created_at_max) }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "cc893b98-e860-443c-aebe-c7fea8ed2459",
+      "name": "Shopify: Fetch Abandoned Checkouts",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        5264,
+        1760
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes"
+            }
+          ]
+        }
+      },
+      "id": "b9f69f4f-266a-4889-9460-921996b5b3dc",
+      "name": "Schedule (cada 5 min)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "position": [
+        4848,
+        1760
+      ],
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://app.rapiwa.com/api/send-message",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "number",
+              "value": "={{ $json.data.number }}"
+            },
+            {
+              "name": "message_type",
+              "value": "text"
+            },
+            {
+              "name": "message",
+              "value": "={{ \n`Hola ${$json.name} 👋\n\nVimos que dejaste tu carrito abierto.\n${$json.items_summary ? `\\n${$json.items_summary}\\n` : ''}\n\nRetomalo acá:\n${$json.checkout_url}\n\n${$json.product_links ? `\\nLinks de productos:\\n${$json.product_links}\\n` : ''}\n\n¿Te ayudo con alguna duda?`\n}}"
+            },
+            {
+              "name": "status"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "6701b709-163d-4047-a0de-33030c03f560",
+      "name": "WhatsApp: Enviar (Rapiwa)",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        7088,
+        1824
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "jsCode": "// Normaliza a dígitos y agrega country code si falta.\n// ENV opcional: DEFAULT_COUNTRY_CODE (ej: 54 AR)\n\nconst cc = String($env.DEFAULT_COUNTRY_CODE || \"\").replace(/\\D/g, \"\");\nlet raw = String($json.whatsapp_number || \"\");\n\n// dígitos only\nlet num = raw.replace(/\\D/g, \"\");\n\n// AR: quitar 0 inicial y 15 móvil\nif (num.startsWith(\"0\")) num = num.slice(1);\nnum = num.replace(/^([1-9]\\d{1,4})15(\\d+)/, \"$1$2\");\n\n// prefijar cc si corresponde\nif (cc && !num.startsWith(cc)) {\n  if (num.length <= 12) num = cc + num;\n}\n\nreturn [{\n  json: {\n    ...$json,\n    number: num,\n    country_code_used: cc || null\n  }\n}];\n"
+      },
+      "id": "f41fcfb6-490d-4426-8a52-835ad6fd77ed",
+      "name": "Clean: WhatsApp (E.164 sin +)",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        6064,
+        1776
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://app.rapiwa.com/api/verify-whatsapp",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "number",
+              "value": "={{ $json.number }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "9935cc39-380e-44f2-8cfa-f1288126d5f7",
+      "name": "Check valid whatsapp number Using Rapiwa1",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        6304,
+        1776
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "content": "🟩 WHATSAPP (Rapiwa)\nToken Bearer en:\n- \"Check valid whatsapp number Using Rapiwa1\"\n- \"WhatsApp: Enviar (Rapiwa)\"\nENV: DEFAULT_COUNTRY_CODE (ej 54)",
+        "height": 304,
+        "width": 576,
+        "color": 6
+      },
+      "id": "e801d983-1838-4d6f-9f67-d02ee248821e",
+      "name": "Sticky Note10",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        5952,
+        1648
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "## Lógica condicional\n\nEl nodo **If** verifica si `data.exists == true`:\n\n- **Rama True (verificado):**\n  - Envía el WhatsApp por Rapiwa.\n  - Registra en Google Sheets con verificación: `verified`.\n\n- **Rama False (no verificado):**\n  - Registra en Google Sheets con verificación: `unverified`.",
+        "height": 448,
+        "width": 432,
+        "color": 5
+      },
+      "id": "a797b944-30b3-454a-9735-81491198ff78",
+      "name": "Sticky Note9",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        6544,
+        1712
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "🟦 GOOGLE SHEETS (seguimiento)\nCrear 2 pestañas:\n- sent (enviados)\n- skipped (omitidos)\nColumnas:\ntimestamp | status | verification | checkout_id | name | number | total_price | currency | items_summary | checkout_url | product_links",
+        "height": 416,
+        "width": 560,
+        "color": 4
+      },
+      "id": "e76e60d4-ae69-4aee-8ce9-833b161eb450",
+      "name": "Sticky Note12",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        6992,
+        1648
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "✅ LEAN\nPrimero hacerlo funcionar.\nLuego iterar:\n- copy (mensaje)\n- ventana\n- 2do follow-up (24h)",
+        "height": 368,
+        "width": 560,
+        "color": 2
+      },
+      "id": "974998b0-4646-4e97-a16e-291c26d5379c",
+      "name": "Sticky Note13",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        6992,
+        2080
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "3ab8725a-9268-45fd-b91c-0e055fe6fa7c",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              },
+              "leftValue": "={{ $json.data.exists }}",
+              "rightValue": "=\"true\""
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "993ca8b1-4c3b-42a9-9d4d-a1233bbc3703",
+      "name": "If",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        6704,
+        2016
+      ],
+      "typeVersion": 2.2
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "REPLACE_WITH_SHEET_ID",
+          "cachedResultUrl": "",
+          "cachedResultName": "REPLACE_WITH_SHEET_NAME"
+        },
+        "sheetName": "sent",
+        "columns": {
+          "value": {
+            "timestamp": "={{ new Date().toISOString() }}",
+            "status": "sent",
+            "verification": "={{ $json.data?.exists === true ? 'verified' : 'unverified' }}",
+            "checkout_id": "={{ $json.checkout_id }}",
+            "name": "={{ $json.name }}",
+            "number": "={{ $json.number }}",
+            "total_price": "={{ $json.total_price }}",
+            "currency": "={{ $json.currency }}",
+            "items_summary": "={{ $json.items_summary }}",
+            "checkout_url": "={{ $json.checkout_url }}",
+            "product_links": "={{ $json.product_links }}"
+          },
+          "schema": [
+            {
+              "id": "name",
+              "type": "string",
+              "display": true,
+              "removed": false,
+              "required": false,
+              "displayName": "name",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "number",
+              "type": "string",
+              "display": true,
+              "removed": false,
+              "required": false,
+              "displayName": "number",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "order id",
+              "type": "string",
+              "display": true,
+              "removed": false,
+              "required": false,
+              "displayName": "order id",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "item name",
+              "type": "string",
+              "display": true,
+              "removed": false,
+              "required": false,
+              "displayName": "item name",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "coupon",
+              "type": "string",
+              "display": true,
+              "removed": false,
+              "required": false,
+              "displayName": "coupon",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "item link",
+              "type": "string",
+              "display": true,
+              "removed": false,
+              "required": false,
+              "displayName": "item link",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "total price",
+              "type": "string",
+              "display": true,
+              "removed": false,
+              "required": false,
+              "displayName": "total price",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "validity",
+              "type": "string",
+              "display": true,
+              "removed": false,
+              "required": false,
+              "displayName": "validity",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "status",
+              "type": "string",
+              "display": true,
+              "removed": false,
+              "required": false,
+              "displayName": "status",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            }
+          ],
+          "mappingMode": "defineBelow",
+          "matchingColumns": [
+            "row_number"
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "2e61ad0b-a0da-4b13-952c-79fc02d97864",
+      "name": "Google Sheets: Log (SENT)",
+      "type": "n8n-nodes-base.googleSheets",
+      "position": [
+        7376,
+        1840
+      ],
+      "typeVersion": 4.6
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "REPLACE_WITH_SHEET_ID",
+          "cachedResultUrl": "",
+          "cachedResultName": "REPLACE_WITH_SHEET_NAME"
+        },
+        "sheetName": "skipped",
+        "columns": {
+          "value": {
+            "timestamp": "={{ new Date().toISOString() }}",
+            "status": "skipped",
+            "verification": "={{ $json.data?.exists === true ? 'verified' : 'unverified' }}",
+            "checkout_id": "={{ $json.checkout_id }}",
+            "name": "={{ $json.name }}",
+            "number": "={{ $json.number }}",
+            "total_price": "={{ $json.total_price }}",
+            "currency": "={{ $json.currency }}",
+            "items_summary": "={{ $json.items_summary }}",
+            "checkout_url": "={{ $json.checkout_url }}",
+            "product_links": "={{ $json.product_links }}"
+          },
+          "schema": [
+            {
+              "id": "name",
+              "type": "string",
+              "display": true,
+              "removed": false,
+              "required": false,
+              "displayName": "name",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "number",
+              "type": "string",
+              "display": true,
+              "removed": false,
+              "required": false,
+              "displayName": "number",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "order id",
+              "type": "string",
+              "display": true,
+              "removed": false,
+              "required": false,
+              "displayName": "order id",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "item name",
+              "type": "string",
+              "display": true,
+              "removed": false,
+              "required": false,
+              "displayName": "item name",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "coupon",
+              "type": "string",
+              "display": true,
+              "removed": false,
+              "required": false,
+              "displayName": "coupon",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "item link",
+              "type": "string",
+              "display": true,
+              "removed": false,
+              "required": false,
+              "displayName": "item link",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "total price",
+              "type": "string",
+              "display": true,
+              "removed": false,
+              "required": false,
+              "displayName": "total price",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "validity",
+              "type": "string",
+              "display": true,
+              "removed": false,
+              "required": false,
+              "displayName": "validity",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "status",
+              "type": "string",
+              "display": true,
+              "removed": false,
+              "required": false,
+              "displayName": "status",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            }
+          ],
+          "mappingMode": "defineBelow",
+          "matchingColumns": [
+            "row_number"
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "a40296d4-1b53-4cb6-90c6-5cad201866d0",
+      "name": "Google Sheets: Log (SKIPPED)",
+      "type": "n8n-nodes-base.googleSheets",
+      "position": [
+        7104,
+        2272
+      ],
+      "typeVersion": 4.6
+    },
+    {
+      "parameters": {},
+      "id": "3ddae84b-c3b7-4cef-aa1f-f1fe83794714",
+      "name": "Wait (5s)",
+      "type": "n8n-nodes-base.wait",
+      "position": [
+        7344,
+        2272
+      ],
+      "webhookId": "6c474e54-eb3c-4fcd-b455-948322cd0121",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// Convierte /checkouts.json en items listos para WhatsApp.\n// Lean: solo datos necesarios + filtros para no spamear.\n\nconst checkouts = $json.checkouts || [];\nconst out = [];\n\nfor (const c of checkouts) {\n  if (!c) continue;\n  if (c.completed_at) continue;\n  if (String(c.total_price || \"0\") === \"0\") continue;\n\n  const phoneRaw =\n    c.phone ||\n    c.customer?.phone ||\n    c.billing_address?.phone ||\n    c.shipping_address?.phone ||\n    \"\";\n\n  if (!phoneRaw) continue;\n\n  const name =\n    c.shipping_address?.first_name ||\n    c.billing_address?.first_name ||\n    c.customer?.first_name ||\n    \"Cliente\";\n\n  const checkoutId = c.id || c.token || c.checkout_token || \"\";\n  const currency = c.currency || \"\";\n  const totalPrice = c.total_price || \"\";\n\n  const checkoutUrl =\n    c.abandoned_checkout_url ||\n    c.checkout_url ||\n    c.recovery_url ||\n    \"\";\n\n  // items (máx 3)\n  const items = Array.isArray(c.line_items) ? c.line_items : [];\n  const itemsShort = items.slice(0, 3).map(li => ({\n    title: li.title || \"\",\n    qty: li.quantity || 1\n  }));\n\n  const itemsSummary = itemsShort\n    .filter(x => x.title)\n    .map(x => `• ${x.title} x${x.qty}`)\n    .join(\"\\n\");\n\n  // links de producto (hack simple): búsqueda en tienda por título\n  let storeBase = \"\";\n  try {\n    const u = new URL(checkoutUrl);\n    storeBase = `${u.protocol}//${u.host}`;\n  } catch (e) {\n    const shop = ($env.SHOPIFY_STORE || \"\").trim();\n    storeBase = shop ? `https://${shop}` : \"\";\n  }\n\n  const productLinks = itemsShort\n    .filter(x => x.title && storeBase)\n    .map(x => `${storeBase}/search?q=${encodeURIComponent(x.title)}`)\n    .join(\"\\n\");\n\n  out.push({\n    checkout_id: checkoutId,\n    name,\n    whatsapp_number: String(phoneRaw),\n    total_price: String(totalPrice),\n    currency,\n    items_summary: itemsSummary,\n    product_links: productLinks,\n    checkout_url: checkoutUrl,\n    created_at: c.created_at,\n    updated_at: c.updated_at,\n  });\n}\n\nreturn out.map(x => ({ json: x }));\n"
+      },
+      "id": "cfbec0b1-efbf-4157-ac94-b7f0ed333d69",
+      "name": "Format: Checkouts -> Items",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        5440,
+        1760
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "00c845fa-866c-4287-b3f9-8ad3c2558bdb",
+      "name": "Loop (por checkout)",
+      "type": "n8n-nodes-base.splitInBatches",
+      "position": [
+        5696,
+        1760
+      ],
+      "typeVersion": 3
+    },
+    {
+      "parameters": {
+        "content": "🟨 OBJETIVO\nShopify → detectar checkouts abiertos (abandonados) → WhatsApp con link del carrito + links de productos → registro en Sheets.",
+        "height": 80,
+        "width": 1424,
+        "color": 2
+      },
+      "id": "ae3f0aee-ae1d-424a-8ba9-c4f0d2ddad7a",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        5616,
+        1408
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "🟧 SHOPIFY\n1) ENV: SHOPIFY_STORE\n2) En \"Shopify: Fetch Abandoned Checkouts\" poné X-Shopify-Access-Token en Credential.\n3) Ventana:\n   ABANDON_MIN_AGE_MIN (default 30)\n   ABANDON_MAX_AGE_H (default 48)",
+        "height": 384,
+        "width": 256,
+        "color": 4
+      },
+      "id": "4c90585f-a266-41fb-a8c1-2af6dbad3075",
+      "name": "Sticky Note1",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        4768,
+        1536
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "## Obtener checkouts abandonados  \n### Nodo: HTTP Request  \n- Endpoint: `https://{{SHOPIFY_STORE}}/admin/api/2025-07/checkouts.json`  \n- Auth: token de app privada de Shopify vía **HTTP Header Auth**  \n- Qué hace: trae todos los checkouts abiertos/abandonados desde Shopify.  \n- Por qué importa: es la fuente de datos para los recordatorios por WhatsApp.\n\n## Formatear la respuesta de la API  \n### Nodo: Formatear datos de respuesta HTTP (Code)  \n- Qué hace: extrae nombre del cliente, teléfono, título de producto, cantidad, precio y URL del checkout del JSON crudo.  \n- Por qué importa: deja los datos listos y consistentes para el resto del flujo.",
+        "height": 592,
+        "width": 528,
+        "color": 5
+      },
+      "id": "d7b7fdf3-7bae-46e2-b4f4-23854f67fcb1",
+      "name": "Sticky Note2",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        5056,
+        1344
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "## Recorrer cada checkout  \n### Nodo: Loop Over Items (SplitInBatches)  \n- Qué hace: procesa un checkout por vez.  \n- Por qué importa: permite batching y manejo individual.",
+        "height": 304,
+        "width": 336,
+        "color": 4
+      },
+      "id": "e285368c-5096-404e-989b-7d6d18111fa7",
+      "name": "Sticky Note3",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        5600,
+        1600
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "jsCode": "// ====== CONFIG (Lean) ======\n// ENV vars recomendadas:\n// SHOPIFY_STORE=\"tu-tienda.myshopify.com\"\n// ABANDON_MIN_AGE_MIN=\"30\"   (minutos)\n// ABANDON_MAX_AGE_H=\"48\"     (horas)\n// DEFAULT_COUNTRY_CODE=\"54\"  (AR) / \"52\"(MX) / \"57\"(CO) etc.\n//\n// Shopify Access Token: credential en nodo \"Shopify: Fetch Abandoned Checkouts\" (header X-Shopify-Access-Token).\n\nconst shop = ($env.SHOPIFY_STORE || \"REPLACE_ME.myshopify.com\").trim();\nconst minAgeMin = parseInt($env.ABANDON_MIN_AGE_MIN || \"30\", 10);\nconst maxAgeH  = parseInt($env.ABANDON_MAX_AGE_H   || \"48\", 10);\n\nconst now = new Date();\nconst created_at_max = new Date(now.getTime() - minAgeMin * 60 * 1000); // antes de esto\nconst created_at_min = new Date(now.getTime() - maxAgeH * 60 * 60 * 1000); // no más viejo que esto\n\nreturn [{\n  json: {\n    shop,\n    created_at_min: created_at_min.toISOString(),\n    created_at_max: created_at_max.toISOString(),\n    run_at: now.toISOString(),\n  }\n}];\n"
+      },
+      "id": "0870c0aa-3503-40af-abea-3a112caef730",
+      "name": "Config + Ventana (Lean)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5120,
+        1760
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "If": {
+      "main": [
+        [
+          {
+            "node": "WhatsApp: Enviar (Rapiwa)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Google Sheets: Log (SKIPPED)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check valid whatsapp number Using Rapiwa1": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule (cada 5 min)": {
+      "main": [
+        [
+          {
+            "node": "Config + Ventana (Lean)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Shopify: Fetch Abandoned Checkouts": {
+      "main": [
+        [
+          {
+            "node": "Format: Checkouts -> Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format: Checkouts -> Items": {
+      "main": [
+        [
+          {
+            "node": "Loop (por checkout)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop (por checkout)": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Clean: WhatsApp (E.164 sin +)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clean: WhatsApp (E.164 sin +)": {
+      "main": [
+        [
+          {
+            "node": "Check valid whatsapp number Using Rapiwa1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WhatsApp: Enviar (Rapiwa)": {
+      "main": [
+        [
+          {
+            "node": "Google Sheets: Log (SENT)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait (5s)": {
+      "main": [
+        [
+          {
+            "node": "Loop (por checkout)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Sheets: Log (SENT)": {
+      "main": [
+        [
+          {
+            "node": "Wait (5s)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Sheets: Log (SKIPPED)": {
+      "main": [
+        [
+          {
+            "node": "Wait (5s)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config + Ventana (Lean)": {
+      "main": [
+        [
+          {
+            "node": "Shopify: Fetch Abandoned Checkouts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "3c952001-e555-4fbe-ad20-5c85b5a1e68e",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "ec5a422553a9326bb2c3f8d1673e3274bdc8d8571928ad6b94d0afa50da93036"
+  },
+  "id": "ORZkxidsdYs0MYPr",
+  "tags": []
+}
